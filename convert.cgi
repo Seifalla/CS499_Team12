@@ -9,7 +9,9 @@ Web-based interface to my convert.pl program, but entirely inline.
 Author: Raphael Finkel 1/2015 © GPL
 
 =cut
-use LWP 5.64;
+use LWP::UserAgent qw( );
+use LWP::ConnCache;
+use Locale::Currency;
 use strict;
 use utf8;
 use CGI qw/:standard -debug/;
@@ -425,15 +427,37 @@ sub parseExpr {
 
 sub addCurrencies{
 
-    my $browser = LWP::UserAgent->new;
-    my $response = $browser->get('https://www.exchangerate-api.com/gbp/usd/1.00?k=426f79b0065024a1be6eff85');
-    my $result = $response->content . " usd";
-    $constants{'gbp'} = parseExpr $result;
-        $cNames{'gbp'} = 'british pound';
-    $response = $browser->get('https://www.exchangerate-api.com/eur/gbp/1.00?k=426f79b0065024a1be6eff85');
-    $result = $response->content . " gbp";
-    $constants{'eur'} = parseExpr $result;
-        $cNames{'eur'} = 'euro';
+    my $browser = LWP::UserAgent->new();
+
+    my @codes   = all_currency_codes();
+
+  $codes[0] = 'usd';
+
+  my $a = 0;
+
+  my $lastKnownCurrency = 'usd';
+
+  my $url = '';
+
+  my $conn_cache = LWP::ConnCache->new;
+  $conn_cache->total_capacity([1]) ;
+  $browser->conn_cache($conn_cache) ;
+
+  while($a < 70){
+    $url = 'https://www.exchangerate-api.com/'.$codes[$a+1].'/'.$codes[$a].'/1.00?k=75b540dc67bc066c4a02b15c';
+    my $response = $browser->get($url);
+    if($response->content > 0){
+    $lastKnownCurrency = $codes[$a+1];
+    my $result = $response->content .' '.$codes[$a];
+    $constants{$codes[$a+1]} = parseExpr $result;
+    $cNames{$codes[$a+1]} = code2currency($codes[$a+1]);
+    $a = $a + 1;
+    }
+    else{
+	$codes[$a+1] = $lastKnownCurrency;
+	$a = $a + 1;
+    }
+  }
 }
 
 sub addSIUnits { # Système international d'unités
