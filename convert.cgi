@@ -1,4 +1,4 @@
-#!/usr/bin/perl  -T
+#!/usr/bin/perl  
 
 =head1 SYNOPSYS
 
@@ -12,6 +12,10 @@ Author: Raphael Finkel 1/2015 © GPL
 use LWP::UserAgent qw( );
 use LWP::ConnCache;
 use Locale::Currency;
+use Curr;
+use JSON::PP;
+use Scalar::Util qw(looks_like_number);
+use Time::Piece;
 use strict;
 use utf8;
 use CGI qw/:standard -debug/;
@@ -46,7 +50,7 @@ my $css = '
 # mass, distance, time, current, luminosity, count, temperature
 # dimension symbols: mass, length, time, current, luminosity, 
 	# number, temperature
-my @names = ('x', 'kg', 'm', 's', 'A', 'cd', 'mol', "°K",'usd');
+my @names = ('x', 'kg', 'm', 's', 'A', 'cd', 'mol', "°K",'USD');
 my $zero = [0.0, 0,0,0,0,0,0,0,0];
 my $bad = ['NaN', "",0,0,0,0,0,0,0]; # The first dim holds an error string
 my %constants = (
@@ -57,7 +61,7 @@ my %constants = (
 	cd => [1.0,  0,0,0,0,1,0,0,0], # candela
 	mol => [1.0,   0,0,0,0,0,1,0,0],
 	K => [1.0,   0,0,0,0,0,0,1,0],
-    usd => [1.0,   0,0,0,0,0,0,0,1],
+    USD => [1.0,   0,0,0,0,0,0,0,1],
 ); # constants
 my %cNames = {
 	s => 'second',
@@ -67,7 +71,7 @@ my %cNames = {
 	cd => 'candela',
 	mol => 'mole',
 	K => 'degree Kelvin',
-    usd => 'dollar',
+    USD => 'dollar',
 };
 my %multipliers = (
 	P => 1e+15, # peta-
@@ -427,15 +431,58 @@ sub parseExpr {
 
 sub addCurrencies{
 
+# if the file is empty or outdated do the following, else populate the hash table with the file's data.
+    my $base_path = "./currencies.json";
+
+    my $fh = 'currencies.json';
+
+    my $epoch_timestamp = (stat($fh))[9];
+    my $timestamp = localtime($epoch_timestamp);
+
+    my $currentTime = localtime();
+
+    my $format = '%a %b %d %H:%M:%S %Y';
+
+    my $diff = Time::Piece->strptime($currentTime, $format) - Time::Piece->strptime($timestamp, $format);
+
+    if (-f $base_path && $diff < 21600){
+
+	 local $/; #Enable 'slurp' mode
+  	 open my $fh, "<", "currencies.json";
+  	 my $json = <$fh>;
+  	 close $fh;
+	 my $data = decode_json($json);
+	for my $currency (@{$data}){
+
+		my $Cname = '';
+		my $value = 0;
+
+		for my $key (keys(%$currency)){
+		
+			my $name = $currency->{$key};
+                	if (looks_like_number($name)){
+				$value = $name;
+                	}
+                	else{
+				$Cname = $name;
+                	}
+		}
+		$constants{$Cname} = parseExpr $value .' USD';
+		$cNames{$Cname} = code2currency($Cname);
+	}
+    }
+    else{
     my $browser = LWP::UserAgent->new();
 
     my @codes   = all_currency_codes();
 
-  $codes[0] = 'usd';
+    my @currencies = ();
+
+  $codes[0] = 'USD';
 
   my $a = 0;
 
-  my $lastKnownCurrency = 'usd';
+  my $lastKnownCurrency = 'USD';
 
   my $url = '';
 
@@ -444,19 +491,28 @@ sub addCurrencies{
   $browser->conn_cache($conn_cache) ;
 
   while($a < 70){
-    $url = 'https://www.exchangerate-api.com/'.$codes[$a+1].'/'.$codes[$a].'/1.00?k=75b540dc67bc066c4a02b15c';
+    $url = 'https://www.exchangerate-api.com/'.$codes[$a+1].'/'.$codes[$a].'/1.00?k=9f915924bc0ff6c59b9cb71d';
     my $response = $browser->get($url);
     if($response->content > 0){
     $lastKnownCurrency = $codes[$a+1];
     my $result = $response->content .' '.$codes[$a];
     $constants{$codes[$a+1]} = parseExpr $result;
     $cNames{$codes[$a+1]} = code2currency($codes[$a+1]);
+    my $currency = new Curr($codes[$a+1], ${$constants{$codes[$a+1]}}[0]);
+    push(@currencies, $currency);
     $a = $a + 1;
     }
     else{
 	$codes[$a+1] = $lastKnownCurrency;
 	$a = $a + 1;
     }
+  }
+  my $JSON = JSON::PP->new->utf8;
+  $JSON->convert_blessed(1);
+  my $json = $JSON->encode(\@currencies);
+  open my $fh, ">", "currencies.json";
+  print $fh $json;
+  close $fh;
   }
 }
 
@@ -763,6 +819,31 @@ sub readEvalPrint {
 				printVal ("" , $result);
 			} else {
 				print "Can't convert; different units.";
+			}
+		} elsif ($line =~ /^\s*addDim\s+(.*)\s+name\s+(.*)/) {
+
+			my ($dim, $dimName) = ($1, $2);
+			if(exists $constants {$dim}){
+				print "Error: dimension already exists.";
+			}
+			else{
+			my @array = ();
+			my $length = scalar @{$constants {'s'}};
+			push (@array,1.0);
+			my $a = 0;
+			while($a <= $length - 2){
+        			push (@array,0);
+        			$a ++;
+			}
+			push (@array,1);
+			for my $one ( keys %constants) {
+        			push(@{$constants {$one}}, 0);
+			}
+			push @names,$dim;
+			push @{$zero},0;
+			push @{$bad},0;
+			push @{$constants {$dim}}, @array;
+			push @{$cNames{$dim}}, $dimName;
 			}
 		} else { # expression
 			printVal "", parseExpr($line);
