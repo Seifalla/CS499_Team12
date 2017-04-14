@@ -524,7 +524,7 @@ my $browser = LWP::UserAgent->new();
     }
   }
  
- # encode the currencies' array and store it in the JSON file
+ # convert the currencies' array into JSON format and store it in the JSON file
  
   my $JSON = JSON::PP->new->utf8;
   $JSON->convert_blessed(1);
@@ -536,11 +536,16 @@ my $browser = LWP::UserAgent->new();
 
 sub loadJson {
 
+# open a file in "read" mode
+
 	 local $/; #Enable 'slurp' mode
   	 open my $fh, "<", "currencies.json";
   	 my $json = <$fh>;
   	 close $fh;
+# decode the file content and store it in an array
 	 my $data = decode_json($json);
+	 
+# for each object in the array, store the value member in the hash table
 	for my $currency (@{$data}){
 
 		my $Cname = '';
@@ -549,6 +554,9 @@ sub loadJson {
 		for my $key (keys(%$currency)){
 		
 			my $name = $currency->{$key};
+
+# determine if the data member is the currency name or its value
+
                 	if (looks_like_number($name)){
 				$value = $name;
                 	}
