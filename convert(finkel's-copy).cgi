@@ -433,10 +433,12 @@ sub parseExpr {
 
 sub isFileValid{
 
-# if the file is empty or outdated, do the following, else populate the hash table with the file's data.
     my $base_path = "./currencies.json";
 
     my $fh = 'currencies.json';
+
+# stat returns an array containing status information about the file
+# the ninth element is the date in which the file was last modified
 
     my $epoch_timestamp = (stat($fh))[9];
     my $timestamp = localtime($epoch_timestamp);
@@ -445,18 +447,24 @@ sub isFileValid{
 
     my $format = '%a %b %d %H:%M:%S %Y';
 
+# calculate how long the file has lived since it was last modified
+
     my $diff = Time::Piece->strptime($currentTime, $format) - Time::Piece->strptime($timestamp, $format);
+
+# if the file exists and it's younger than six hours, return true
 
     if (-f $base_path && $diff < 21600)
     
     	return 1;
-   else
+   else			# return false
 	return 0;
 }
 
 sub addCurrencies{
 
-    if (isFileValid()){
+# if the file is empty or outdated, load the currencies from the api, else populate the hash table with the file's data.
+
+    if (isFileValid()) {
 
 	loadJson();
     }
@@ -467,11 +475,17 @@ sub addCurrencies{
 
 sub loadApi {
 
+# instantiate a browser object to send a GET request
+
 my $browser = LWP::UserAgent->new();
+
+# use a built-in function to load all the currencies' names into an array
 
     my @codes   = all_currency_codes();
 
     my @currencies = ();
+
+# USD is the base unit. All the currencies will be converted to usd.
 
   $codes[0] = 'USD';
 
@@ -481,9 +495,16 @@ my $browser = LWP::UserAgent->new();
 
   my $url = '';
 
+# Since we're dealing with one server, we're going to use a persistent connection.
+
   my $conn_cache = LWP::ConnCache->new;
   $conn_cache->total_capacity([1]) ;
   $browser->conn_cache($conn_cache) ;
+
+# for each currency: 
+#	- make an api call to calculate its equivalent value in dollars
+#	- store it in hash table
+#	- add it to the currencies array
 
   while($a < 70){
     $url = 'https://www.exchangerate-api.com/'.$codes[$a+1].'/'.$codes[$a].'/1.00?k=9f915924bc0ff6c59b9cb71d';
@@ -502,6 +523,9 @@ my $browser = LWP::UserAgent->new();
 	$a = $a + 1;
     }
   }
+ 
+ # encode the currencies' array and store it in the JSON file
+ 
   my $JSON = JSON::PP->new->utf8;
   $JSON->convert_blessed(1);
   my $json = $JSON->encode(\@currencies);
