@@ -431,7 +431,7 @@ sub parseExpr {
 	return $results;
 } # parseExpr
 
-sub isFileValid{
+sub isFileValid {
 
     my $base_path = "./currencies.json";
 
@@ -460,7 +460,7 @@ sub isFileValid{
 	return 0;
 }
 
-sub addCurrencies{
+sub addCurrencies {
 
 # if the file is empty or outdated, load the currencies from the api, else populate the hash table with the file's data.
 
