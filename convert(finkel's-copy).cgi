@@ -431,9 +431,9 @@ sub parseExpr {
 	return $results;
 } # parseExpr
 
-sub addCurrencies{
+sub isFileValid{
 
-# if the file is empty or outdated do the following, else populate the hash table with the file's data.
+# if the file is empty or outdated, do the following, else populate the hash table with the file's data.
     my $base_path = "./currencies.json";
 
     my $fh = 'currencies.json';
@@ -447,34 +447,27 @@ sub addCurrencies{
 
     my $diff = Time::Piece->strptime($currentTime, $format) - Time::Piece->strptime($timestamp, $format);
 
-    if (-f $base_path && $diff < 21600){
+    if (-f $base_path && $diff < 21600)
+    
+    	return 1;
+   else
+	return 0;
+}
 
-	 local $/; #Enable 'slurp' mode
-  	 open my $fh, "<", "currencies.json";
-  	 my $json = <$fh>;
-  	 close $fh;
-	 my $data = decode_json($json);
-	for my $currency (@{$data}){
+sub addCurrencies{
 
-		my $Cname = '';
-		my $value = 0;
+    if (isFileValid()){
 
-		for my $key (keys(%$currency)){
-		
-			my $name = $currency->{$key};
-                	if (looks_like_number($name)){
-				$value = $name;
-                	}
-                	else{
-				$Cname = $name;
-                	}
-		}
-		$constants{$Cname} = parseExpr $value .' USD';
-		$cNames{$Cname} = code2currency($Cname);
-	}
+	loadJson();
     }
-    else{
-    my $browser = LWP::UserAgent->new();
+    else {
+ 	loadApi();   
+  }
+}
+
+sub loadApi {
+
+my $browser = LWP::UserAgent->new();
 
     my @codes   = all_currency_codes();
 
@@ -515,7 +508,32 @@ sub addCurrencies{
   open my $fh, ">", "currencies.json";
   print $fh $json;
   close $fh;
-  }
+}
+
+sub loadJson {
+
+	 local $/; #Enable 'slurp' mode
+  	 open my $fh, "<", "currencies.json";
+  	 my $json = <$fh>;
+  	 close $fh;
+	 my $data = decode_json($json);
+	for my $currency (@{$data}){
+
+		my $Cname = '';
+		my $value = 0;
+
+		for my $key (keys(%$currency)){
+		
+			my $name = $currency->{$key};
+                	if (looks_like_number($name)){
+				$value = $name;
+                	}
+                	else{
+				$Cname = $name;
+                	}
+		}
+		$constants{$Cname} = parseExpr $value .' USD';
+		$cNames{$Cname} = code2currency($Cname);
 }
 
 sub addSIUnits { # Système international d'unités
