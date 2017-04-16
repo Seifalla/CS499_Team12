@@ -23,12 +23,14 @@ my $query=new CGI;
 my $submit = $query->param('submit');
 my $reset = $query->param('reset');
 my $text;
+my $Dim = $query->param('Dim');
+my $Unit = $query->param('Unit');
 my $drop = $query->param('drop');
 my @array;
-my $selection;
-
+my $selection = "";
+my $unitbutton = "";
 # HTML for first drop down 
-my $form1 = "
+my $DimDrop= "
         <form
         action='" . $0 . "'
         method='post'>
@@ -40,16 +42,16 @@ my $form1 = "
                         <option value='Current'>Current</option>
                         <option value='Moles'>Moles</option>
                         <option value='Temperature'>Temperature</option>
-                  </select>
-                  <select name='units'>";
+                  </select>";
 #HTML for second drop down and text area
-my $form2 = "
- </select>
-      <input type='submit' value='enter' name='select'/></br>
+my $DimButton = "
+      <input  type='submit' value='enter' name='Dim'/>";
+
+my $opentext = "</br>
                 Enter your conversion requests here:<br/><textarea
                 name='text' cols='80' rows='10' onmouseover='this.focus()'>";
 
-my $form3 ="</textarea>
+my $closetext ="</textarea>
                 <br/>
                 <input type='submit' name='submit' value='submit'
                         style='background-color:#AAFFAA;'/>
@@ -142,6 +144,7 @@ sub init {
 # doWOrk
 # prints out the HTML for the rest of page
 sub doWork {
+	my $hidden = "hidden";
         my $text = $query->param('text');
 	#Decision making for if user presses submit, reset, or enter
 	if ($submit eq "submit") {
@@ -155,21 +158,24 @@ sub doWork {
                 if($reset eq "reset")
 		{
 			$text = "";
-                	$selection = "<option></option>";
 
 		}
 		# if user selected drop down
-		elsif($drop){
-			$text = $query->param('text').$query->param('units');
+		elsif($Dim){
 			# gets units for that length and populates drop down
+			$selection = "<select name ='units'>";
 			my @array = getUnits($drop);
 		      	foreach my $index(@array)
 			{	
 				$selection = $selection. "<option value=$index>$index</br>";
 			}
+			$selection = $selection."</select>";
+			$unitbutton = "<input type='submit' value='enter' name='Unit'/>";
                 }
-          
-		print $form1.$selection.$form2.$text.$form3. br() . hr() . br().
+          	elsif($Unit){
+			$text = $query->param('text').$query->param('units');
+		}
+		print $DimDrop.$DimButton.$selection.$unitbutton.$opentext.$text.$closetext. br() . hr() . br().
 		"<pre>
 Type in expressions or assignments followed by newline.
 You may not use function symbols.
