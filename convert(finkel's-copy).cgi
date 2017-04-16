@@ -23,20 +23,48 @@ use CGI qw/:standard -debug/;
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/local/gnu/bin'; # for security
 
 # constants
+my $dim= 0;
+my $query=new CGI;
+my $submit = $query->param('submit');
+my $reset = $query->param('reset');
+my $text;
+my $Dim = $query->param('Dim');
+my $Unit = $query->param('Unit');
+my $drop = $query->param('drop');
+my @array;
+my $selection = "";
+my $unitbutton = "";
+# HTML for first drop down 
+my $DimDrop= "
+        <form
+        action='" . $0 . "'
+        method='post'>
+                  <select name='drop'>
+                        <option value='Length'>Length</option>
+                        <option value='Time'>Time</option>
+                        <option value='Mass'>Mass</option>
+                        <option value='Intensity'>Intensity</option>
+                        <option value='Current'>Current</option>
+                        <option value='Moles'>Moles</option>
+                        <option value='Temperature'>Temperature</option>
+			<option value='Dollars'>Dollars</option>
+                  </select>";
+#HTML for second drop down and text area
+my $DimButton = "
+      <input  type='submit' value='enter' name='Dim'/>";
 
-my $form = "
-	<form
-	action='" . $0 . "'
-	method='post' enctype='multipart/form-data'>
-		Enter your conversion requests here:<br/><textarea
-		name='text' cols='80' rows='10' onmouseover='this.focus()'></textarea>
-		<br/>
-		<input type='submit' value='execute'
-			style='background-color:#AAFFAA;'/>
-		<input type='reset' value='reset'
-			style='background-color:#FFAAAA;'/>
-	</form>
-	";
+my $opentext = "</br>
+                Enter your conversion requests here:<br/><textarea
+                name='text' cols='80' rows='10' onmouseover='this.focus()'>";
+
+my $closetext ="</textarea>
+                <br/>
+                <input type='submit' name='submit' value='submit'
+                        style='background-color:#AAFFAA;'/>
+                <input type='submit' name='reset' value='reset'
+                        style='background-color:#FFAAAA;'/>
+        </form>
+        ";
 my $css = '
 	pre, textarea {
 		font-family: "Courier", monospace;
@@ -90,6 +118,16 @@ my %multipliers = (
 	f => 1e-15, # femto-
 );
 
+my %time = ();
+my %length = ();
+my %mass = ();
+my %electric = ();
+my %intensity = ();
+my %substance = ();
+my %dollar = ();
+my %temp = ();
+my %rest = ();
+
 sub init {
 	my ($title);
 	binmode STDOUT, ":utf8";
@@ -109,15 +147,38 @@ sub init {
 } # init
 
 sub doWork {
-	my $text = param('text');
-	if (defined($text)) {
-		print "You entered: <pre>$text</pre>";
-		print "Result:<pre>";
-		readEvalPrint($text);
-		print Dumper(\%constants);
-		print :"</pre>";
-	} else { 
-		print $form . br() . hr() . br().
+	my $hidden = "hidden";
+        my $text = $query->param('text');
+	#Decision making for if user presses submit, reset, or enter
+	if ($submit eq "submit") {
+                print "You entered: <pre>$text</pre>";
+                print "Result:<pre>";
+                readEvalPrint($text);
+                print :"</pre>";
+	}
+	 else { 
+ 		#clears values for reset
+                if($reset eq "reset")
+		{
+			$text = "";
+
+		}
+		# if user selected drop down
+		elsif($Dim){
+			# gets units for that length and populates drop down
+			$selection = "<select name ='units'>";
+			my @array = getUnits($drop);
+		      	foreach my $index(@array)
+			{	
+				$selection = $selection. "<option value=$index>$index</br>";
+			}
+			$selection = $selection."</select>";
+			$unitbutton = "<input type='submit' value='enter' name='Unit'/>";
+                }
+          	elsif($Unit){
+			$text = $query->param('text').$query->param('units');
+		}
+		print $DimDrop.$DimButton.$selection.$unitbutton.$opentext.$text.$closetext. br() . hr() . br().
 		"<pre>
 Type in expressions or assignments followed by newline.
 You may not use function symbols.
@@ -256,11 +317,22 @@ sub match {
 # all parsing routines take a query, return (remainder, expansion)
 
 sub isSameDim {
-	my ($a, $b) = @_;
-	for my $index (1 .. $#{$a}) {
-		return 0 if (${$a}[$index] != ${$b}[$index]);
-	}
-	return 1;
+        my ($a, $b) = @_;
+        for my $index (1 .. $#{$a}) {
+		#To populate constants hash table
+                if(!$dim)
+                {
+                        return 0 if (${$a}[$index] != ${$b}[$index]);
+                }
+                else
+                {
+                        if(${$a}[$index] != ${$b}[$index])
+                        {
+                                return 0 if((${$a}[$index] eq 0 && ${$b}[$index] ne 0) || (${$b}[$index] eq 0 && ${$a}[$index] ne 0));                                  
+                        }
+                }
+        }
+        return 1;
 } # isSameDim
 
 sub isScalar {
@@ -832,6 +904,66 @@ sub addRussianUnits {
 	# there are other units as well
 } # addRussianUnits
 
+sub Dimensions{
+	$dim = 1; 
+        foreach my $key (keys %constants)
+        {
+                my $value = $constants{$key};
+                my $val = ${$value}[0];
+                if(isSameDim($value,$constants{"m"})){
+                        $length{$key} = $val;
+                }
+                elsif(isSameDim($value,$constants{"g"})){
+                        $mass{$key} = $val;
+                }
+                elsif(isSameDim($value,$constants{"s"})){
+                        $time{$key} = $val;
+                }
+                elsif(isSameDim($value,$constants{"A"})){
+                        $electric{$key} = $val;
+                }
+                elsif(isSameDim($value,$constants{"cd"})){
+                        $intensity{$key} = $val;
+                }
+                elsif(isSameDim($value,$constants{"K"})){
+                        $temp{$key} = $val;
+                }
+                elsif(isSameDim($value,$constants{"mol"})){
+                        $substance{$key} = $val;
+                }
+		elsif(isSameDim($value,$constants{"USD"})){
+			$dollar{$key} = $val;
+		}
+                else{
+                        $rest{$key} = $val;
+                }
+        }
+	$dim = 0;
+
+}
+
+sub getUnits{
+        my $u = @_[0];
+        my %dimarray;
+        my @tkey;
+        my @tval;
+
+        if($u eq "Length"){%dimarray = %length;}
+        elsif($u eq "Mass") {%dimarray = %mass;}
+        elsif($u eq "Time") {%dimarray = %time;}
+        elsif($u eq "Intensity") {%dimarray = %intensity;}
+        elsif($u eq "Current") {%dimarray = %electric;}
+        elsif($u eq "Temperature") {%dimarray = %temp;}
+        elsif($u eq "Moles") {%dimarray = %substance;}
+	elsif($u eq "Dollars") {%dimarray = %dollar;}
+
+        foreach my $key (sort (keys(%dimarray))) {
+                push @tkey, $key;
+        }
+
+        return (@tkey);
+}
+
 sub showConstants {
 	print "<pre>Known constants\n";
 	for my $key (sort keys %constants) {
@@ -906,6 +1038,7 @@ addPhysicsConstants();
 addEnglishUnits();
 addRussianUnits();
 addCurrencies();
+Dimensions();
 doWork();
 finalize();
 
