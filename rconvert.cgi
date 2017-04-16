@@ -18,21 +18,21 @@ $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/local/gnu/bin'; # for security
 
 # constants
 
-
-my $buffer;
-
 my $dim= 0;
 my $query=new CGI;
-my $var = $query->param('text').$query->param('units');
+my $submit = $query->param('submit');
+my $reset = $query->param('reset');
+my $text;
 my $drop = $query->param('drop');
 my @array;
 my $selection;
+
+# HTML for first drop down 
 my $form1 = "
         <form
         action='" . $0 . "'
         method='post'>
                   <select name='drop'>
-                        <option>$drop</option>
                         <option value='Length'>Length</option>
                         <option value='Time'>Time</option>
                         <option value='Mass'>Mass</option>
@@ -42,11 +42,14 @@ my $form1 = "
                         <option value='Temperature'>Temperature</option>
                   </select>
                   <select name='units'>";
+#HTML for second drop down and text area
 my $form2 = "
  </select>
       <input type='submit' value='enter' name='select'/></br>
                 Enter your conversion requests here:<br/><textarea
-                name='text' cols='80' rows='10' onmouseover='this.focus()'>$var</textarea>
+                name='text' cols='80' rows='10' onmouseover='this.focus()'>";
+
+my $form3 ="</textarea>
                 <br/>
                 <input type='submit' name='submit' value='submit'
                         style='background-color:#AAFFAA;'/>
@@ -91,6 +94,7 @@ my %cNames = {
 	K => 'degree Kelvin',
 };
 
+#hast tables to hold units in these dimensions and their base value
 my %time = ();
 my %length = ();
 my %mass = ();
@@ -116,6 +120,7 @@ my %multipliers = (
 	f => 1e-15, # femto-
 );
 
+#initializes HTML for the page
 sub init {
 	my ($title);
 	binmode STDOUT, ":utf8";
@@ -134,26 +139,37 @@ sub init {
 		h1("Unit converter and calculator");
 } # init
 
+# doWOrk
+# prints out the HTML for the rest of page
 sub doWork {
         my $text = $query->param('text');
-        if (length($var) > 0) {
+	#Decision making for if user presses submit, reset, or enter
+	if ($submit eq "submit") {
                 print "You entered: <pre>$text</pre>";
                 print "Result:<pre>";
                 readEvalPrint($text);
                 print :"</pre>";
-	} else { 
-                if($drop)
-                {
-                      my @array = getUnits($drop);
-		      foreach my $index(@array)
-			{
+	}
+	 else { 
+ 		#clears values for reset
+                if($reset eq "reset")
+		{
+			$text = "";
+                	$selection = "<option></option>";
+
+		}
+		# if user selected drop down
+		elsif($drop){
+			$text = $query->param('text').$query->param('units');
+			# gets units for that length and populates drop down
+			my @array = getUnits($drop);
+		      	foreach my $index(@array)
+			{	
 				$selection = $selection. "<option value=$index>$index</br>";
 			}
-                }else{
-                        $selection = "<option></option>";
                 }
-
-		print $form1.$selection.$form2 . br() . hr() . br().
+          
+		print $form1.$selection.$form2.$text.$form3. br() . hr() . br().
 		"<pre>
 Type in expressions or assignments followed by newline.
 You may not use function symbols.
@@ -295,6 +311,7 @@ sub match {
 sub isSameDim {
         my ($a, $b) = @_;
         for my $index (1 .. $#{$a}) {
+		#To populate constants hash table
                 if(!$dim)
                 {
                         return 0 if (${$a}[$index] != ${$b}[$index]);
