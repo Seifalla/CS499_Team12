@@ -35,14 +35,17 @@ my $DimDrop= "
         action='" . $0 . "'
         method='post'>
                   <select name='drop'>
+			<option>$drop</option>
                         <option value='Length'>Length</option>
+			<option value='Mass'>Mass</option>
+                        <option value='Area'>Area</option>
+                        <option value='Volume'>Volume</option>
+                        <option value='Velocity'>Velocity</option>
+                        <option value='Energy'>Energy</option>
                         <option value='Time'>Time</option>
-                        <option value='Mass'>Mass</option>
-                        <option value='Intensity'>Intensity</option>
-                        <option value='Current'>Current</option>
-                        <option value='Moles'>Moles</option>
-                        <option value='Temperature'>Temperature</option>
+			<option value='Force'>Force</option>
 			<option value='Dollars'>Dollars</option>
+			<option value='Misc'>Misc</option>
                   </select>";
 #HTML for second drop down and text area
 my $DimButton = "
@@ -61,7 +64,7 @@ my $closetext ="</textarea>
         </form>
         ";
 my $css = '
-	pre, textarea {
+	pre,textarea {
 		font-family: "Courier", monospace;
 		font-size: 100%; 
 		font-weight: bold;
@@ -112,16 +115,17 @@ my %multipliers = (
 	p => 1e-12, # pico-
 	f => 1e-15, # femto-
 );
-
-my %time = ();
-my %length = ();
-my %mass = ();
-my %electric = ();
-my %intensity = ();
-my %substance = ();
-my %dollar = ();
-my %temp = ();
-my %rest = ();
+#arrays for dropw down categories
+my @area = ();
+my @mass = ();
+my @length = ();
+my @volume = ();
+my @velocity = ();
+my @energy = ();
+my @time = ();
+my @force = ();
+my @dollar = ();
+my @misc = ();
 
 sub init {
 	my ($title);
@@ -165,25 +169,32 @@ sub doWork {
 			my @array = getUnits($drop);
 		      	foreach my $index(@array)
 			{	
+				#stores key as drop down value
 				$selection = $selection. "<option value=$index>$index</br>";
 			}
 			$selection = $selection."</select>";
 			$unitbutton = "<input type='submit' value='enter' name='Unit'/>";
                 }
+		#if user sleects a specific units
           	elsif($Unit){
+			#add unit to text area
 			$text = $query->param('text').$query->param('units');
 		}
 		print $DimDrop.$DimButton.$selection.$unitbutton.$opentext.$text.$closetext. br() . hr() . br().
 		"<pre>
 Type in expressions or assignments followed by newline.
-You may not use function symbols.
+Accepted Commands:
+1. 'convert x to y', where x and y are any compatible expressions.
+2. 'dimof x', where x is a unit
+3. 'addim x name y', where y is a new dimension and x is unit in it
+4. Assignment using '='
+5. To comment start a line with '%'
+
 You may use metric prefixes, such as M, μ, and n. 
-You may use implicit multiplication.
-You may use unary negation.
 You may use exponentiation (with ^) to any integer (including negative).
 You may say 'convert x to y', where x and y are any compatible expressions.
-You may use decimal numbers, but not e notation.
-Comments start with % and continue to the end of the line.
+You may not use e notation
+
 You may prefix constants and variables with multipliers: 
 	P peta-
 	T tera-
@@ -199,7 +210,6 @@ You may prefix constants and variables with multipliers:
 	p pico-
 	f femto-
 </pre>";
-	# showVariables();
 	showConstants();
 	}
 } # doWork
@@ -315,17 +325,9 @@ sub isSameDim {
         my ($a, $b) = @_;
         for my $index (1 .. $#{$a}) {
 		#To populate constants hash table
-                if(!$dim)
-                {
-                        return 0 if (${$a}[$index] != ${$b}[$index]);
-                }
-                else
-                {
-                        if(${$a}[$index] != ${$b}[$index])
-                        {
-                                return 0 if((${$a}[$index] eq 0 && ${$b}[$index] ne 0) || (${$b}[$index] eq 0 && ${$a}[$index] ne 0));                                  
-                        }
-                }
+		return 0 if (${$a}[$index] != ${$b}[$index]);
+                
+       
         }
         return 1;
 } # isSameDim
@@ -636,6 +638,69 @@ sub loadJson {
 	}
 }
 
+sub dimof {
+
+        my ($a) = @_;
+        my $dimCount = 1;
+        my $dim = "";
+	my $denominator;
+	my $numerator;
+        for my $index (1 .. $#{$a}){
+
+                #print $names[$dimCount];
+
+		# first/second
+
+                if(${$a}[$index] != 0){
+                        if(${$a}[$index] == 1) {
+                                $numerator = "$numerator".$names[$dimCount];
+                        } elsif(${$a}[$index] > 1) {
+                                $numerator = "$numerator".$names[$dimCount] . "^" . ${$a}[$index];
+                        }
+			else {}
+                }
+                $dimCount = $dimCount + 1;
+        }
+
+	$dimCount = 1;
+
+	for my $index (1 .. $#{$a}){
+
+		if(${$a}[$index] != 0){
+
+			if(${$a}[$index] == -1) {
+				$denominator = "$denominator".$names[$dimCount];
+			}
+			elsif(${$a}[$index] < -1) {
+                                my $sign = -1 * ${$a}[$index];
+                                $denominator = "$denominator".$names[$dimCount] . "^" . $sign;
+                        }
+			else {}
+		}
+		$dimCount = $dimCount + 1;
+	}
+
+	# only if denominator is not nil
+
+	if(defined($denominator)){
+
+		$denominator = "("."$denominator".")";
+	}
+	if(!defined($numerator)){
+
+		$numerator = "1";
+	}
+
+	if(defined($denominator)){
+
+		$dim = "$numerator"."/"."$denominator";
+	}
+	else{
+		$dim = $numerator;
+	}
+        return $dim;
+}
+
 sub addSIUnits { # Système international d'unités
 	$constants{'cc'} = parseExpr('cm^3');
 		$cNames{'cc'} = 'cubic centimeter';
@@ -749,11 +814,11 @@ sub addEnglishUnits {
 		$cNames{'fldr'} = 'fluid dram';
 	$constants{'tsp'} = parseExpr('80 minim'); # teaspoon
 		$cNames{'tsp'} = 'teaspoon';
-	$constants{'Tbsp'} = parseExpr('3 tsp'); # teaspoon
-		$cNames{'Tbsp'} = 'tablespoon';
-	$constants{'floz'} = parseExpr('2 Tbsp'); # fluid ounce
+	$constants{'tbsp'} = parseExpr('3 tsp'); # teaspoon
+		$cNames{'tbsp'} = 'tablespoon';
+	$constants{'floz'} = parseExpr('2 tbsp'); # fluid ounce
 		$cNames{'floz'} = 'fluid ounce';
-	$constants{'jig'} = parseExpr('3 Tbsp'); # jigger
+	$constants{'jig'} = parseExpr('3 tbsp'); # jigger
 		$cNames{'jig'} = 'jigger';
 	$constants{'gi'} = parseExpr('4 floz'); # US gill
 		$cNames{'gi'} = 'US Gill';
@@ -900,62 +965,83 @@ sub addRussianUnits {
 	# there are other units as well
 } # addRussianUnits
 
-sub Dimensions{
-	$dim = 1; 
+#Dimensions
+#Creates the arrays that holds the units for each drop down category
+sub Dimensions{ 
         foreach my $key (keys %constants)
         {
                 my $value = $constants{$key};
                 my $val = ${$value}[0];
+		#Checks if current unit is equal to base unit of that categroy
+		#m
                 if(isSameDim($value,$constants{"m"})){
-                        $length{$key} = $val;
+                        push @length, $key;
                 }
-                elsif(isSameDim($value,$constants{"g"})){
-                        $mass{$key} = $val;
+		#m^2
+                elsif(isSameDim($value,$constants{"acre"})){
+                        push @area, $key;
                 }
+		#kg
+		elsif(isSameDim($value,$constants{"g"})){
+                        push @mass, $key;
+                }
+		#m^3
+                elsif(isSameDim($value,$constants{"pt"})){
+                        push @volume, $key;
+                }
+		#m/s
+                elsif(isSameDim($value,$constants{"c"})){
+                        push @velocity ,$key;
+                }
+                elsif(isSameDim($value,$constants{"J"})){
+                        push @energy, $key;
+                }
+		#s
                 elsif(isSameDim($value,$constants{"s"})){
-                        $time{$key} = $val;
+                        push @time, $key;
                 }
-                elsif(isSameDim($value,$constants{"A"})){
-                        $electric{$key} = $val;
-                }
-                elsif(isSameDim($value,$constants{"cd"})){
-                        $intensity{$key} = $val;
-                }
-                elsif(isSameDim($value,$constants{"K"})){
-                        $temp{$key} = $val;
-                }
-                elsif(isSameDim($value,$constants{"mol"})){
-                        $substance{$key} = $val;
-                }
+		#currnecy
 		elsif(isSameDim($value,$constants{"USD"})){
-			$dollar{$key} = $val;
+			push @dollar, $key;
 		}
-                else{
-                        $rest{$key} = $val;
+		#kg*m/(s^2)
+                elsif(isSameDim($value,$constants{"N"})){
+                        push @force, $key
                 }
-        }
-	$dim = 0;
+		#any that doesn't hit in the above cateogries
+                else{
+                        push @misc, $key;
+                }
+	}
 
+	push @velocity, "m/s";
+        push @velocity, "mi/hr";
+        push @velocity, "nmi/hr";
+        push @velocity, "km/hr";
+        push @velocity, "ft/s";
+	
 }
 
+#getUnits
+#gets the array for the chosen drop down category
 sub getUnits{
-        my $u = @_[0];
-        my %dimarray;
+        my $u = $_[0];
+        my @dimarray;
         my @tkey;
         my @tval;
 
-        if($u eq "Length"){%dimarray = %length;}
-        elsif($u eq "Mass") {%dimarray = %mass;}
-        elsif($u eq "Time") {%dimarray = %time;}
-        elsif($u eq "Intensity") {%dimarray = %intensity;}
-        elsif($u eq "Current") {%dimarray = %electric;}
-        elsif($u eq "Temperature") {%dimarray = %temp;}
-        elsif($u eq "Moles") {%dimarray = %substance;}
-	elsif($u eq "Dollars") {%dimarray = %dollar;}
+        if($u eq "Length"){@dimarray = @length;}
+	elsif($u eq "Mass") {@dimarray = @mass;}
+        elsif($u eq "Area") {@dimarray = @area;}
+        elsif($u eq "Volume") {@dimarray = @volume;}
+        elsif($u eq "Energy") {@dimarray = @energy;}
+        elsif($u eq "Time") {@dimarray = @time;}
+        elsif($u eq "Force") {@dimarray = @force;}
+        elsif($u eq "Velocity") {@dimarray = @velocity;}
+        elsif($u eq "Dollars") {@dimarray = @dollar;}
+        elsif($u eq "Misc") {@dimarray = @misc;}
 
-        foreach my $key (sort (keys(%dimarray))) {
-                push @tkey, $key;
-        }
+        @tkey  = sort { lc($a) cmp lc($b) } @dimarray;
 
         return (@tkey);
 }
@@ -978,18 +1064,23 @@ sub showVariables {
 	print "</pre>"
 } # showVariables
 
+#readevalPrint
+#the main for the back end
+#parses the input and returns an evaluation or error
 sub readEvalPrint {
 	my ($text) = @_;
+	#loops through line of textarea
 	for my $line (split(/\n/, $text)) {
 		chomp $line;
 		$line =~ s/%.*//; # comment
 		next unless $line =~ /\w/;
 
-		if ($line =~ /^\s*(\w+)\s*=(.*)/) { # assignment
+		if ($line =~ /^\s*(\w+)\s*=(.*)/) { # assignment, use of equal sign
 			my ($var, $value) = ($1, $2);
 			$variables{$var} = parseExpr($value);
 			printVal "$var = ", $variables{$var};
-		} elsif ($line =~ /^\s*convert\s+(.*)\s+to\s+(.*)/) {
+		} 
+		elsif ($line =~ /^\s*convert\s+(.*)\s+to\s+(.*)/) {#converstion of a unit to another
 			my ($orig, $new) = ($1, $2);
 			my $result = parseExpr "(($orig) / ($new))";
 			if (isScalar $result) {
@@ -1021,7 +1112,18 @@ sub readEvalPrint {
 				push @{$constants{$dim}}, @dimPowers;
 				push @{$cNames{$dim}}, $dimName;
 			}
-		} else { # expression
+		}
+		elsif ($line =~ /^\s*dimof\s+(.*)/) {
+
+                        my $dim = $1;
+			my $result;
+			if(!defined($variables{$dim})){
+                        	$result = dimof($constants {$dim});
+                        } else {
+				$result = dimof($variables {$dim});
+			}
+			print "$dim : ", $result."";
+                }else { # expression
 			printVal "", parseExpr($line);
 		}
 		print "<br/>";
