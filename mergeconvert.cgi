@@ -115,7 +115,7 @@ my %multipliers = (
 	p => 1e-12, # pico-
 	f => 1e-15, # femto-
 );
-#arrays for dropw down categories
+#arrays for drop down categories
 my @area = ();
 my @mass = ();
 my @length = ();
@@ -187,8 +187,8 @@ sub doWork {
 Type in expressions or assignments followed by newline.
 Accepted Commands:
 1. 'convert x to y', where x and y are any compatible expressions.
-2. 'dimof x', where x is a unit
-3. 'addim x name y', where y is a new dimension and x is unit in it
+2. 'dimof x', where x is a compatible expression
+3. 'addDim x name y', where y is a new dimension and x is unit in it
 4. Assignment using '='
 5. To comment start a line with '%'
 
