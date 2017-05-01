@@ -145,6 +145,8 @@ sub init {
 		h1("Unit converter and calculator");
 } # init
 
+#Additions to function by Ronnel Turner: 
+#Main of the page
 sub doWork {
 	my $hidden = "hidden";
         my $text = $query->param('text');
@@ -500,6 +502,8 @@ sub parseExpr {
 	return $results;
 } # parseExpr
 
+# Author: Seifalla Moustafa; this function checks if the JSON file has expired
+
 sub isFileValid {
 
     my $base_path = "./currencies.json";
@@ -529,6 +533,8 @@ sub isFileValid {
 	return 0;}
 }
 
+# Seifalla Moustafa; this function adds entries to the hash table containing the currencies values
+
 sub addCurrencies {
 
 # if the file is empty or outdated, load the currencies from the api, else populate the hash table with the file's data.
@@ -541,6 +547,8 @@ sub addCurrencies {
  	loadApi();   
   }
 }
+
+# Seifalla Moustafa; this function makes api calls to load the new currencies values
 
 sub loadApi {
 
@@ -574,6 +582,7 @@ my $browser = LWP::UserAgent->new();
 #	- make an api call to calculate its equivalent value in dollars
 #	- store it in hash table
 #	- add it to the currencies array
+# Note: this api supports 70 currencies
 
   while($a < 70){
     $url = 'https://www.exchangerate-api.com/'.$codes[$a+1].'/'.$codes[$a].'/1.00?k=9f915924bc0ff6c59b9cb71d';
@@ -602,6 +611,9 @@ my $browser = LWP::UserAgent->new();
   print $fh $json;
   close $fh;
 }
+
+# Seifalla Moustafa; this function loads the currencies from the JSON file and stores them into the hash
+# table.
 
 sub loadJson {
 
@@ -638,49 +650,73 @@ sub loadJson {
 	}
 }
 
+# Seifalla Moustafa; this function displays the dimensions of the input unit
+
 sub dimof {
 
+# this array contains the 8 base dimensions
+
+	my @dims = ('mass', 'length', 'time', 'current', 'luminosity', 'mole', "temperature", 'currency');
+
+# store the value of the argument in a variable
+
         my ($a) = @_;
-        my $dimCount = 1;
+
+# initialize the array counter to 0
+
+        my $dimCount = 0;
         my $dim = "";
 	my $denominator;
 	my $numerator;
+
+# the dimensions of a unit are stored in an array.
+# the following two loops translate the array to an arithmatic expression
+# for example, if the array is [1,1,0,0,0,0,0,0], it will
+# be translated to mass/length
+# the first loop builds the numerator, and the second one builds the denominator.
+
         for my $index (1 .. $#{$a}){
-
-                #print $names[$dimCount];
-
-		# first/second
 
                 if(${$a}[$index] != 0){
                         if(${$a}[$index] == 1) {
-                                $numerator = "$numerator".$names[$dimCount];
+				if(defined($numerator)){
+                                	$numerator = "$numerator*".$dims[$dimCount];
+				}
+				else{$numerator = "$numerator".$dims[$dimCount];}
                         } elsif(${$a}[$index] > 1) {
-                                $numerator = "$numerator".$names[$dimCount] . "^" . ${$a}[$index];
+				if(defined($numerator)){
+                                	$numerator = "$numerator*".$dims[$dimCount] . "^" . ${$a}[$index];
+				}
+				else{$numerator = "$numerator".$dims[$dimCount] . "^" . ${$a}[$index];}
                         }
 			else {}
                 }
                 $dimCount = $dimCount + 1;
         }
 
-	$dimCount = 1;
+	$dimCount = 0;
 
 	for my $index (1 .. $#{$a}){
 
 		if(${$a}[$index] != 0){
 
 			if(${$a}[$index] == -1) {
-				$denominator = "$denominator".$names[$dimCount];
+				if(defined($denominator)){
+					$denominator = "$denominator*".$dims[$dimCount];
+				} else {$denominator = "$denominator".$dims[$dimCount];}
 			}
 			elsif(${$a}[$index] < -1) {
                                 my $sign = -1 * ${$a}[$index];
-                                $denominator = "$denominator".$names[$dimCount] . "^" . $sign;
+				if(defined($denominator)){
+                                	$denominator = "$denominator*".$dims[$dimCount] . "^" . $sign;
+				} else {$denominator = "$denominator".$dims[$dimCount] . "^" . $sign;}
                         }
 			else {}
 		}
 		$dimCount = $dimCount + 1;
 	}
 
-	# only if denominator is not nil
+	# the denominator should be surrounded by parenthesis
 
 	if(defined($denominator)){
 
@@ -693,11 +729,20 @@ sub dimof {
 
 	if(defined($denominator)){
 
-		$dim = "$numerator"."/"."$denominator";
+		$dim = "($numerator)"."/"."$denominator";
 	}
 	else{
 		$dim = $numerator;
 	}
+
+	# if the function failed to translate the input,
+	# it will return an error.
+
+	if(!defined($denominator) && $numerator == "1"){
+
+		$dim = "invalid input";
+	}
+
         return $dim;
 }
 
@@ -965,7 +1010,7 @@ sub addRussianUnits {
 	# there are other units as well
 } # addRussianUnits
 
-#Dimensions
+#Ronnel Turner
 #Creates the arrays that holds the units for each drop down category
 sub Dimensions{ 
         foreach my $key (keys %constants)
@@ -1022,7 +1067,7 @@ sub Dimensions{
 	
 }
 
-#getUnits
+#Ronnel Turner
 #gets the array for the chosen drop down category
 sub getUnits{
         my $u = $_[0];
@@ -1092,6 +1137,11 @@ sub readEvalPrint {
 				print "Can't convert; different units.";
 			}
 		} elsif ($line =~ /^\s*addDim\s+(.*)\s+name\s+(.*)/) {
+
+# Seifalla Moustafa; this else-if clause adds an element to the dimensions array 
+# and inserts into the hash table a new entry containing the base unit 
+# of the new dimension.
+
 			my ($dim, $dimName) = ($1, $2);
 			if (exists $constants {$dim}){
 				print "Error: dimension already exists.";
@@ -1115,12 +1165,14 @@ sub readEvalPrint {
 		}
 		elsif ($line =~ /^\s*dimof\s+(.*)/) {
 
+# Seifalla Moustafa; this else-if clause displays the dimensions of the input unit
+
                         my $dim = $1;
 			my $result;
 			if(!defined($variables{$dim})){
-                        	$result = dimof($constants {$dim});
+				$result = dimof(parseExpr($dim));
                         } else {
-				$result = dimof($variables {$dim});
+				$result = dimof(parseExpr($dim));
 			}
 			print "$dim : ", $result."";
                 }else { # expression
